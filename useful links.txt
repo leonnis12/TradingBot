@@ -1,0 +1,4 @@
+https://arxiv.org/pdf/1410.1231v1.pdf
+https://github.com/aarivan/Bayesian-Regression-to-Predict-Bitcoin-Price-Variations
+https://python-binance.readthedocs.io/en/latest/binance.html?highlight=historical#binance.client.AsyncClient.get_historical_klines
+https://python-binance.readthedocs.io/en/latest/constants.html?highlight=Binance%20Kline%20interval#binance-constants
