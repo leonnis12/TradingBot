@@ -37,13 +37,13 @@ def computeDelta(wt, X, Xi):
     float
         The output of equation 6, a prediction of the average price change.
     """
-
     numerator, denominator = 0, 0
     n = len(X) - 1
     matrx = Xi.values
-    for i in range(0,len(matrx)):
-        numerator +=  (matrx[i][n] * math.exp(wt * measure(X[0:n], matrx[i][0:n])))
-        denominator += math.exp(wt * measure(X[0:n], matrx[i][0:n]))
+    # for i in range(0,len(matrx)):
+    i = 0
+    numerator +=  (matrx[i][n] * math.exp(wt * measure(X[0:n], matrx[i][0:n])))
+    denominator += math.exp(wt * measure(X[0:n], matrx[i][0:n]))
     E_emp = float(numerator)/denominator
     return E_emp
 
@@ -111,22 +111,37 @@ class TradingBot:
         data_quart.append(Yi_quart)
         return data_full,data_half,data_quart
 
-    # TODO Change to fit our set + create the training set here
+    # Trains the initial model usnig historical data
     def __train_model(self):
         # Retreive training datasets
-        end=str(datetime.datetime.utcnow()-datetime.timedelta(days=365))
-        start=str(datetime.datetime.utcnow()-datetime.timedelta(days=365,minutes=361))
-        self.train360a,self.train180a,self.train90a = self.__get_market_data(start,end)
-        end=str(datetime.datetime.utcnow()-datetime.timedelta(days=65))
-        start=str(datetime.datetime.utcnow()-datetime.timedelta(days=65,minutes=361))
-        train360b,train180b,train90b = self.__get_market_data(start,end)
+        # Dataset 1
+        for i in range(3):
+            end=str(datetime.datetime.utcnow()-datetime.timedelta(days=365+i))
+            start=str(datetime.datetime.utcnow()-datetime.timedelta(days=365+i,minutes=361))
+            if not hasattr(self,"train90a"):
+                self.train360a=pd.DataFrame(np.empty((3, 361)) * np.nan) 
+                self.train180a=pd.DataFrame(np.empty((3, 361)) * np.nan) 
+                self.train90a=pd.DataFrame(np.empty((3, 361)) * np.nan) 
+                tmp360,tmp180,tmp90=self.__get_market_data(start,end)
+            else:
+                tmp360,tmp180,tmp90=self.__get_market_data(start,end)
+            self.train360a.loc[i,:] = tmp360
+            self.train180a.loc[i,:] = tmp180
+            self.train90a.loc[i,:] = tmp90
 
-        self.train360a=pd.DataFrame(self.train360a)
-        self.train180a=pd.DataFrame(self.train180a)
-        self.train90a=pd.DataFrame(self.train90a)
-        train360b=pd.DataFrame(train360b)
-        train180b=pd.DataFrame(train180b)
-        train90b=pd.DataFrame(train90b)
+        for i in range(3):
+            end=str(datetime.datetime.utcnow()-datetime.timedelta(days=65+i))
+            start=str(datetime.datetime.utcnow()-datetime.timedelta(days=65+i,minutes=361))
+            if not hasattr(self,"train90b"):
+                self.train360b=pd.DataFrame(np.empty((3, 361)) * np.nan) 
+                self.train180b=pd.DataFrame(np.empty((3, 361)) * np.nan) 
+                self.train90b=pd.DataFrame(np.empty((3, 361)) * np.nan) 
+                tmp360,tmp180,tmp90=self.__get_market_data(start,end)
+            else:
+                tmp360,tmp180,tmp90=self.__get_market_data(start,end)
+            self.train360b.loc[i,:] = tmp360
+            self.train180b.loc[i,:] = tmp180
+            self.train90b.loc[i,:] = tmp90
 
         # Perform the Bayesian Regression to predict the average price change for each dataset of train2 using train1 as input. 
         # These will be used to estimate the coefficients (w0, w1, w2, and w3) in equation 8.
@@ -135,17 +150,16 @@ class TradingBot:
         trainDeltaP180 = np.empty(0)
         trainDeltaP360 = np.empty(0)
         
-        
         for i in range(0,len(self.train90a.index)) :
-            trainDeltaP90 = np.append(trainDeltaP90, computeDelta(weight,train90b.iloc[i],self.train90a))
+            trainDeltaP90 = np.append(trainDeltaP90, computeDelta(weight,self.train90b.iloc[i],self.train90a))
         for i in range(0,len(self.train180a.index)) :
-            trainDeltaP180 = np.append(trainDeltaP180, computeDelta(weight,train180b.iloc[i],self.train180a))
+            trainDeltaP180 = np.append(trainDeltaP180, computeDelta(weight,self.train180b.iloc[i],self.train180a))
         for i in range(0,len(self.train360a.index)) :
-            trainDeltaP360 = np.append(trainDeltaP360, computeDelta(weight,train360b.iloc[i],self.train360a))
+            trainDeltaP360 = np.append(trainDeltaP360, computeDelta(weight,self.train360b.iloc[i],self.train360a))
 
 
         # Actual deltaP values for the train2 data.
-        trainDeltaP = np.asarray(train360b[len(train360b)-1])
+        trainDeltaP = np.asarray(self.train360b[len(self.train360b)-1])
         trainDeltaP = np.reshape(trainDeltaP, -1)
 
 
@@ -156,12 +170,12 @@ class TradingBot:
             'deltaP360': trainDeltaP360 }
         trainData = pd.DataFrame(d)
 
-
         # Feed the data: [deltaP, deltaP90, deltaP180, deltaP360] to train the linear model. 
         # Use the statsmodels ols function.
         # Use the variable name model for your fitted model
         # YOUR CODE HERE
         self.model = smf.ols(formula = 'deltaP ~ deltaP90 + deltaP180 + deltaP360', data = trainData).fit()
+
 
     def __predict(self,test_360,test_180,test_90):
         if self.model==None:
@@ -192,19 +206,36 @@ class TradingBot:
             'deltaP360': testDeltaP360}
         testData = pd.DataFrame(d)
         result = self.model.predict(testData)
-        return result
-
+        return testDeltaP,result
 
     def start(self):
         # Predict current
-        start=str(datetime.datetime.utcnow()-datetime.timedelta(minutes=361))
-        end=str(datetime.datetime.utcnow())
-        data360,data180,data90 = self.__get_market_data(start,end)
-        #print(data360)
-        #print(len(data360))
-        #print(data90)
-        prediction = self.__predict(data360,data180,data90)
+        data360 = None
+        for i in range(3):
+            start=str(datetime.datetime.utcnow()-datetime.timedelta(days=i,minutes=361))
+            end=str(datetime.datetime.utcnow()-datetime.timedelta(days=i))
+            if data360 is None:
+                data360=pd.DataFrame(np.empty((3, 361)) * np.nan) 
+                data180=pd.DataFrame(np.empty((3, 361)) * np.nan) 
+                data90=pd.DataFrame(np.empty((3, 361)) * np.nan) 
+                tmp360,tmp180,tmp90=self.__get_market_data(start,end)
+            else:
+                tmp360,tmp180,tmp90=self.__get_market_data(start,end)
+            data360.loc[i,:] = tmp360
+            data180.loc[i,:] = tmp180
+            data90.loc[i,:] = tmp90
+        testDeltaP,prediction = self.__predict(data360,data180,data90)
         print(prediction)
+
+        compare = { 'Actual': testDeltaP,
+            'Predicted': prediction }
+        compareDF = pd.DataFrame(compare)
+        # Compute the MSE and print the result
+        MSE = 0.0
+        MSE = sm.mean_squared_error(compareDF['Actual'],compareDF['Predicted'])
+        print("The MSE is %f" % (MSE))
+        # tmp = data360.loc[0].values.tolist()
+        # print("Real: "+str(sum(tmp)/len(tmp)))
         
         
 def main(argv):

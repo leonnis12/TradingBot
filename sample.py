@@ -57,6 +57,7 @@ def computeDelta(wt, X, Xi):
         The output of equation 6, a prediction of the average price change.
     """
 
+    breakpoint()
     numerator, denominator = 0, 0
     n = len(X) - 1
     matrx = Xi.values
@@ -109,6 +110,7 @@ print(model.params)
 # YOUR CODE HERE
 weight = 2 
 testDeltaP90 = testDeltaP180 = testDeltaP360 = np.empty(0)
+# breakpoint()
 for i in range(0,len(train1_90.index)) :
   testDeltaP90 = np.append(testDeltaP90, computeDelta(weight,test_90.iloc[i],train1_90))
 for i in range(0,len(train1_180.index)) :
@@ -136,6 +138,7 @@ compare = { 'Actual': testDeltaP,
             'Predicted': result }
 compareDF = pd.DataFrame(compare)
 
+print(result)
 
 # Compute the MSE and print the result
 # HINT: consider using the sm.mean_squared_error function
